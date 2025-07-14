@@ -1,18 +1,19 @@
 {
-  "name": "ts-starter",
+  "name": "vite-plugin-deploy",
   "type": "module",
   "version": "0.0.1",
-  "description": "A starter template for TypeScript projects",
+  "description": "A Vite plugin for deploying static files use ssh2-sftp-client",
   "author": "oiij",
   "license": "MIT",
-  "homepage": "https://github.com/oiij/ts-starter",
+  "homepage": "https://github.com/oiij/vite-plugin-deploy",
   "repository": {
     "type": "git",
-    "url": "git@github.com:oiij/ts-starter.git"
+    "url": "git@github.com:oiij/vite-plugin-deploy.git"
   },
-  "bugs": "https://github.com/oiij/ts-starter/issues",
+  "bugs": "https://github.com/oiij/vite-plugin-deploy/issues",
   "keywords": [
-    "ts-starter"
+    "vite-plugin-deploy",
+    "ssh2-sftp-client"
   ],
   "sideEffects": false,
   "exports": {
@@ -33,11 +34,7 @@
   ],
   "scripts": {
     "dev": "tsdown --watch",
-    "dev:vite": "vite build --watch",
-    "build": "tsc --noEmit && tsdown",
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs",
+    "build": "tsdown",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepublishOnly": "pnpm build",
@@ -51,33 +48,35 @@
     "cz": "czg",
     "commit": "git pull && git add -A && pnpm cz && git push",
     "link": "pnpm link --global",
-    "preinstall": "npx only-allow pnpm",
-    "postinstall": "npx simple-git-hooks"
+    "preinstall": "npx only-allow pnpm"
+  },
+  "peerDependencies": {
+    "vite": "^7.0.4"
+  },
+  "dependencies": {
+    "@types/ssh2-sftp-client": "^9.0.4",
+    "ora": "^8.2.0",
+    "ssh2-sftp-client": "^12.0.1"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^4.14.1",
+    "@antfu/eslint-config": "^4.16.2",
     "@oiij/tsconfig": "^0.0.1",
-    "@types/node": "^24.0.3",
-    "@vitejs/plugin-vue": "^5.2.4",
+    "@types/node": "^24.0.13",
     "@vitest/ui": "^3.2.4",
     "bumpp": "^10.2.0",
     "commitlint": "^19.8.1",
-    "cz-git": "^1.11.2",
-    "czg": "^1.11.2",
-    "eslint": "^9.29.0",
+    "cz-git": "^1.12.0",
+    "czg": "^1.12.0",
+    "eslint": "^9.31.0",
     "eslint-plugin-format": "^1.0.1",
     "esno": "^4.8.0",
     "lint-staged": "^16.1.2",
     "simple-git-hooks": "^2.13.0",
     "taze": "^19.1.0",
-    "tsdown": "^0.12.8",
+    "tsdown": "^0.12.9",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
-    "vite-plugin-dts": "^4.5.4",
-    "vitepress": "^1.6.3",
-    "vitepress-demo-plugin": "^1.4.5",
-    "vitest": "^3.2.4",
-    "vue-tsc": "^2.2.10"
+    "vite": "^7.0.4",
+    "vitest": "^3.2.4"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm lint-staged && pnpm type:check"
