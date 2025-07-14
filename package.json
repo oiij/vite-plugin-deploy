@@ -1,5 +1,5 @@
 {
-  "name": "vite-plugin-deploy",
+  "name": "@oiij/vite-plugin-deploy",
   "type": "module",
   "version": "0.0.1",
   "description": "A Vite plugin for deploying static files use ssh2-sftp-client",

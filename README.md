@@ -13,15 +13,16 @@ Features:
 # Install
 
 ```bash
-pnpm add vite-plugin-deploy -D
+pnpm add @oiij/vite-plugin-deploy -D
 ```
 
 # Usage
 
 ```ts
 // vite.config.js
+
+import { vitePluginDeploy } from '@oiij/vite-plugin-deploy'
 import { defineConfig } from 'vite'
-import { vitePluginDeploy } from 'vite-plugin-deploy'
 
 export default defineConfig({
   plugins: [
