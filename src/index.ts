@@ -2,7 +2,6 @@ import type { ConnectOptions, UploadDirOptions } from 'ssh2-sftp-client'
 import type { Plugin } from 'vite'
 import fs from 'node:fs'
 import { resolve } from 'node:path'
-import process from 'node:process'
 import ora from 'ora'
 import SftpClient from 'ssh2-sftp-client'
 
@@ -39,11 +38,10 @@ export function vitePluginDeploy(options?: VitePluginDeployOptions): Plugin {
     async closeBundle() {
       const { localDir = 'dist', remoteDir = '/home/dist', backup = true, uploadOptions, ..._options } = options ?? {}
       const backupDir = typeof backup === 'boolean' ? `${remoteDir}_backup` : `${backup}`
-      const localPath = resolve(process.cwd(), localDir)
-      const fileCount = getAllFileCount(localPath)
+      const fileCount = getAllFileCount(localDir)
       let uploadCount = 0
       const spinner = ora('deploy:start').start()
-      if (!fs.existsSync(localPath)) {
+      if (!fs.existsSync(localDir)) {
         spinner.fail(`deploy:error localDir:${localDir} not exists`)
         return
       }
@@ -65,7 +63,7 @@ export function vitePluginDeploy(options?: VitePluginDeployOptions): Plugin {
             spinner.text = `deploy:running rename remote dir success`
           }
         }
-        await sftp.uploadDir(localPath, remoteDir, uploadOptions)
+        await sftp.uploadDir(localDir, remoteDir, uploadOptions)
         sftp.end()
         spinner.succeed(`deploy:success upload ${fileCount} files dir:${localDir} to remote dir:${remoteDir}`)
       }
