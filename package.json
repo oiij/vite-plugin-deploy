@@ -1,7 +1,7 @@
 {
   "name": "@oiij/vite-plugin-deploy",
   "type": "module",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A Vite plugin for deploying static files use ssh2-sftp-client",
   "author": "oiij",
   "license": "MIT",
@@ -48,28 +48,28 @@
   },
   "dependencies": {
     "@types/ssh2-sftp-client": "^9.0.6",
-    "ora": "^9.0.0",
+    "ora": "^9.1.0",
     "ssh2-sftp-client": "^12.0.1"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^6.7.1",
+    "@antfu/eslint-config": "^7.2.0",
     "@oiij/tsconfig": "^0.0.1",
-    "@types/node": "^25.0.3",
-    "@vitest/ui": "^4.0.16",
-    "bumpp": "^10.3.2",
-    "commitlint": "^20.2.0",
+    "@types/node": "^25.2.0",
+    "@vitest/ui": "^4.0.18",
+    "bumpp": "^10.4.0",
+    "commitlint": "^20.4.1",
     "cz-git": "^1.12.0",
     "czg": "^1.12.0",
     "eslint": "^9.39.2",
-    "eslint-plugin-format": "^1.1.0",
+    "eslint-plugin-format": "^1.3.1",
     "esno": "^4.8.0",
     "lint-staged": "^16.2.7",
     "simple-git-hooks": "^2.13.1",
     "taze": "^19.9.2",
-    "tsdown": "^0.18.0",
+    "tsdown": "^0.20.1",
     "typescript": "^5.9.3",
-    "vite": "^7.3.0",
-    "vitest": "^4.0.16"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm lint-staged && pnpm type:check"
