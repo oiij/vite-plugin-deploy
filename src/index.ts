@@ -58,33 +58,67 @@ function formatBytes(bytes: number): string {
 /** 远端命令执行通道，复用 ssh2-sftp-client 底层的 ssh2 连接 */
 interface RemoteExecChannel {
   stderr: { on: (event: 'data', listener: (chunk: Buffer) => void) => void }
-  on: ((event: 'data', listener: (chunk: Buffer) => void) => void) & ((event: 'close', listener: (code: number) => void) => void)
+  on: ((event: 'data', listener: (chunk: Buffer) => void) => void)
+    & ((event: 'close', listener: (code: number | null, signal: string | null) => void) => void)
+    & ((event: 'error', listener: (error: Error) => void) => void)
 }
 
-/** 在远端执行 shell 命令，命令以非 0 退出码结束时抛出错误 */
-function execRemote(sftp: SftpClient, command: string): Promise<void> {
+/** 远端命令执行的默认超时（秒） */
+const EXEC_TIMEOUT = 120
+
+/** 在远端执行 shell 命令，命令以非 0 退出码结束或超时未结束时抛出错误；timeout 为 0 表示不超时 */
+function execRemote(sftp: SftpClient, command: string, timeout: number): Promise<void> {
   const client = (sftp as unknown as {
     client: { exec: (command: string, callback: (err: Error | undefined, channel: RemoteExecChannel) => void) => void }
   }).client
 
   return new Promise((resolvePromise, reject) => {
+    let settled = false
+    const timer: ReturnType<typeof setTimeout> | null = timeout > 0
+      ? setTimeout(() => {
+          settled = true
+          reject(new Error(`remote command timed out after ${timeout}s: ${command}`))
+        }, timeout * 1000)
+      : null
+
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      if (timer !== null) {
+        clearTimeout(timer)
+      }
+      callback()
+    }
+
     client.exec(command, (err, channel) => {
       if (err) {
-        reject(err)
+        settle(() => reject(err))
         return
       }
 
+      // 必须消费 stdout，否则可读流不会进入 flowing 模式、'end' 不触发，channel 的 'close' 事件将永不发出
+      let stdout = ''
       let stderr = ''
+      channel.on('data', (chunk) => {
+        stdout += chunk.toString()
+      })
       channel.stderr.on('data', (chunk) => {
         stderr += chunk.toString()
       })
-      channel.on('close', (code) => {
+      channel.on('error', (error) => {
+        settle(() => reject(error))
+      })
+      channel.on('close', (code, signal) => {
         if (code === 0) {
-          resolvePromise()
+          settle(() => resolvePromise())
+          return
         }
-        else {
-          reject(new Error(`remote command exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}`))
-        }
+
+        const reason = code === null ? `terminated by signal ${signal}` : `exited with code ${code}`
+        const output = (stderr || stdout).trim()
+        settle(() => reject(new Error(`remote command ${reason}${output ? `: ${output}` : ''}`)))
       })
     })
   })
@@ -119,6 +153,7 @@ export interface VitePluginDeployOptions {
   remoteDir?: string
   backup?: boolean | string
   compress?: boolean
+  execTimeout?: number
   connectOptions?: ConnectOptions
   uploadOptions?: UploadDirOptions
 }
@@ -137,14 +172,22 @@ export function vitePluginDeploy(options?: VitePluginDeployOptions): Plugin {
     async closeBundle() {
       const sftp = new SftpClient()
       const buildDir = viteConfig?.build.outDir ?? 'dist'
-      const { enable = true, localDir = buildDir, remoteDir = '/home/dist', backup = true, compress = false, connectOptions, uploadOptions } = options ?? {}
+      const { enable = true, localDir = buildDir, remoteDir = '/home/dist', backup = true, compress = false, execTimeout = EXEC_TIMEOUT, connectOptions, uploadOptions } = options ?? {}
 
       if (!enable) {
         ora('deploy:disabled').info()
         return
       }
 
-      const spinner = ora('deploy:start').start()
+      let spinner = ora('deploy:start').start()
+
+      /** 结束当前步骤并以独立一行输出，然后为下一步启动新的提示（不覆盖上一步） */
+      const nextStep = (successMessage: string, runningMessage?: string) => {
+        spinner.succeed(successMessage)
+        if (runningMessage) {
+          spinner = ora(runningMessage).start()
+        }
+      }
 
       if (!fs.existsSync(localDir)) {
         spinner.fail(`deploy:error localDir:${localDir} not exists`)
@@ -169,61 +212,56 @@ export function vitePluginDeploy(options?: VitePluginDeployOptions): Plugin {
       let localArchive: string | null = null
 
       try {
-        // 压缩上传为单文件传输，不统计逐文件进度
-        if (!compress) {
-          sftp.on('upload', () => {
-            uploadCount++
-            spinner.text = `deploy:running upload ${uploadCount}/${fileCount}`
-          })
-        }
-
         await sftp.connect({ ...connectOptions })
-        spinner.text = `deploy:running remote connect success`
+        nextStep('deploy:success remote connect', 'deploy:running clean up stale files')
 
         // 清理可能残留的临时目录与压缩包
         if (await sftp.exists(tempDir)) {
           await sftp.rmdir(tempDir, true)
-          spinner.text = `deploy:running remove stale temp dir success`
         }
         if (await sftp.exists(remoteArchive)) {
           await sftp.delete(remoteArchive)
-          spinner.text = `deploy:running remove stale archive success`
         }
+        nextStep('deploy:success clean up stale files', compress ? 'deploy:running packing local dir' : 'deploy:running upload to temp dir')
 
         if (compress) {
           // 本地打包 -> 上传压缩包 -> 远端解压到临时目录
-          spinner.text = `deploy:running packing local dir`
           localArchive = await packArchive(localDir)
-
           const archiveSize = fs.statSync(localArchive).size
-          spinner.text = `deploy:running upload archive ${formatBytes(archiveSize)}`
+          nextStep('deploy:success packing local dir', `deploy:running upload archive ${formatBytes(archiveSize)}`)
+
           await sftp.fastPut(localArchive, remoteArchive, {
             step: (transferred, _chunk, total) => {
               const percent = total ? Math.floor((transferred / total) * 100) : 0
               spinner.text = `deploy:running upload archive ${formatBytes(transferred)}/${formatBytes(total)} (${percent}%)`
             },
           })
+          nextStep(`deploy:success upload archive ${formatBytes(archiveSize)}`, 'deploy:running extract archive')
 
-          spinner.text = `deploy:running extract archive`
           await sftp.mkdir(tempDir, true)
-          await execRemote(sftp, `tar -xzf ${shellQuote(remoteArchive)} -C ${shellQuote(tempDir)}`)
-
+          await execRemote(sftp, `tar -xzf ${shellQuote(remoteArchive)} -C ${shellQuote(tempDir)}`, execTimeout)
           await sftp.delete(remoteArchive)
-          spinner.text = `deploy:running extract archive success`
+          nextStep('deploy:success extract archive')
         }
         else {
           // 先上传到临时目录，上传期间目标目录保持在线
+          sftp.on('upload', () => {
+            uploadCount++
+            spinner.text = `deploy:running upload ${uploadCount}/${fileCount}`
+          })
           await sftp.uploadDir(localDir, tempDir, uploadOptions)
-          spinner.text = `deploy:running upload to temp dir success`
+          nextStep(`deploy:success upload ${fileCount} files to temp dir`)
         }
         uploaded = true
 
         // 上传完成后：先把目标目录备份，再将临时目录原子替换为目标目录
         if (backupEnabled && await sftp.exists(remoteDir)) {
+          spinner = ora('deploy:running backup remote dir').start()
           await replaceRemotePath(sftp, remoteDir, backupDir)
-          spinner.text = `deploy:running backup remote dir success`
+          nextStep('deploy:success backup remote dir')
         }
 
+        spinner = ora('deploy:running swap temp dir to remote dir').start()
         await replaceRemotePath(sftp, tempDir, remoteDir)
         spinner.succeed(`deploy:success upload ${fileCount} files dir:${localDir} to remote dir:${remoteDir}`)
       }

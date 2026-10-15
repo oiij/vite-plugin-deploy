@@ -54,6 +54,10 @@ export default defineConfig({
       // 默认 false
       compress: false,
 
+      // 远端命令（解压）执行超时时间，单位秒；设为 0 表示不超时
+      // 默认 120
+      execTimeout: 120,
+
       // SSH 连接参数
       connectOptions: {
         host: 'xxx.xxx.xxx.xxx',
@@ -84,6 +88,7 @@ export default defineConfig({
 | `remoteDir`      | `string`          | `/home/dist`                    | 远端目标目录                                                                                             |
 | `backup`         | `boolean  string` | `true`                          | 是否在部署期间备份（上传后、切换前执行），或自定义备份路径                                               |
 | `compress`       | `boolean`         | `false`                         | 将本地目录打包为 `tar.gz`，上传压缩包并在远端解压（需远端存在 `tar` 命令）                               |
+| `execTimeout`    | `number`          | `120`                           | 远端命令（解压）执行超时时间（秒），`0` 表示不超时                                                        |
 | `connectOptions` | `object`          | `{}`                            | SSH 连接参数（见 [ssh2-sftp-client](https://github.com/theophilusx/ssh2-sftp-client)）                  |
 | `uploadOptions`  | `object`          | `{}`                            | 上传参数（见 [ssh2-sftp-client](https://github.com/theophilusx/ssh2-sftp-client)）                      |
 
